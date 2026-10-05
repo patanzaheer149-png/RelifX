@@ -1,0 +1,6 @@
+{
+  "name": "Agenda - Daily Focus & Task Manager",
+  "description": "Mobile task agenda application highlighting the main agenda of the day with time-blocking, focus mode, and habit tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

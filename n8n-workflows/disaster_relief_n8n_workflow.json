@@ -1,0 +1,202 @@
+{
+  "name": "Disaster Relief Resource Coordination & Daily Agenda Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "relief-request",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Relief Request Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "disaster-relief-incoming-request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.priority }}",
+              "operation": "equal",
+              "value2": "CRITICAL"
+            }
+          ],
+          "boolean": [
+            {
+              "value1": "={{ $json.body.isMainAgendaFocus }}",
+              "value2": true
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "if-priority-critical",
+      "name": "Check Critical / Main Agenda",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8080/api/v1/dashboard/calculate-allocations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relief-auto-allocate",
+      "name": "Call Auto-Allocation Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        700,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "@disaster_relief_dispatch_channel",
+        "text": "=🚨 *CRITICAL DISASTER RELIEF ALERT*\n\n📍 *Affected Area:* {{ $json.body.locationName }}\n📦 *Resource Needed:* {{ $json.body.resourceType }} ({{ $json.body.quantityRequested }} units)\n⚡ *Priority:* {{ $json.body.priority }}\n📝 *Field Notes:* {{ $json.body.notes }}\n⭐ *Main Agenda Focus:* {{ $json.body.isMainAgendaFocus ? 'YES' : 'NO' }}\n\nAuto-allocation triggered in Spring Boot. Central Warehouse fleet notified.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-alert",
+      "name": "Send Telegram Field Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        940,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-daily-agenda",
+      "name": "Daily 8 AM Agenda Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8080/api/v1/dashboard/gaps",
+        "options": {}
+      },
+      "id": "fetch-daily-gaps",
+      "name": "Fetch Daily Gaps API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        460,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#daily-relief-briefing",
+        "text": "=📋 *DAILY MAIN AGENDA & GAP BRIEFING*\n\nTop Mission of the Day: *Dispatch 200 Emergency Water & Medical Kits to Sector 4*\nCritical Shortages: {{ $json.data.criticalPriorityRequestsCount }} areas\nTotal Available Units: {{ $json.data.totalAvailableStockCount }}\nActive Convoys: {{ $json.data.totalAllocationsInTransit }}",
+        "otherOptions": {}
+      },
+      "id": "slack-daily-briefing",
+      "name": "Broadcast to Slack / Discord",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        700,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Relief Request Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Critical / Main Agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Critical / Main Agenda": {
+      "main": [
+        [
+          {
+            "node": "Call Auto-Allocation Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Auto-Allocation Engine": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Field Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 8 AM Agenda Cron": {
+      "main": [
+        [
+          {
+            "node": "Fetch Daily Gaps API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Daily Gaps API": {
+      "main": [
+        [
+          {
+            "node": "Broadcast to Slack / Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
